@@ -14,7 +14,7 @@ JAVA_MAJOR="$(java -version 2>&1 | awk -F'[".]' '/version/ {print $2; exit}')"
 echo "Java detected: $(java -version 2>&1 | head -n 1)"
 
 if [[ -z "$JAVA_MAJOR" || "$JAVA_MAJOR" -lt 25 ]]; then
-  echo "Paper 26.2+ requires Java 25+. Rebuild the Codespace with the included devcontainer."
+  echo "Paper 26.2+ requires Java 25+."
   exit 1
 fi
 
@@ -26,19 +26,22 @@ fi
 
 mkdir -p plugins logs
 
-echo "Finding the latest stable Paper build..."
-PAPER_VERSION="$(curl -fsSL https://api.papermc.io/v2/projects/paper | jq -r '.versions[-1]')"
-PAPER_BUILD="$(curl -fsSL "https://api.papermc.io/v2/projects/paper/versions/$PAPER_VERSION/builds" | jq -r '[.builds[] | select(.channel=="default" and .downloads.application.name != null)] | last | .build')"
+USER_AGENT="minecraft-codespace/1.0 (https://github.com/tyeler964-web/minecraft-codespace)"
 
-if [[ -z "$PAPER_VERSION" || "$PAPER_VERSION" == "null" || -z "$PAPER_BUILD" || "$PAPER_BUILD" == "null" ]]; then
-  echo "Could not determine the latest Paper build."
+echo "Finding the latest stable Paper build..."
+PAPER_VERSION="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper" | jq -r '.versions | to_entries[0] | .value[0]')"
+
+BUILDS_RESPONSE="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper/versions/$PAPER_VERSION/builds")"
+PAPER_BUILD="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .id)')"
+PAPER_URL="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads."server:default".url)')"
+
+if [[ -z "$PAPER_VERSION" || "$PAPER_VERSION" == "null" || -z "$PAPER_BUILD" || "$PAPER_BUILD" == "null" || -z "$PAPER_URL" || "$PAPER_URL" == "null" ]]; then
+  echo "Could not determine a stable Paper build."
   exit 1
 fi
 
-PAPER_URL="https://api.papermc.io/v2/projects/paper/versions/$PAPER_VERSION/builds/$PAPER_BUILD/downloads/paper-$PAPER_VERSION-$PAPER_BUILD.jar"
-
 echo "Downloading Paper $PAPER_VERSION build $PAPER_BUILD..."
-curl -fL "$PAPER_URL" -o server.jar
+curl -fL -H "User-Agent: $USER_AGENT" "$PAPER_URL" -o server.jar
 
 echo "Downloading latest Geyser-Spigot..."
 curl -fL "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot" -o plugins/Geyser-Spigot.jar
