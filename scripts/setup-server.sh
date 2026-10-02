@@ -30,27 +30,29 @@ USER_AGENT="minecraft-codespace/1.0 (https://github.com/tyeler964-web/minecraft-
 
 echo "Finding the latest stable Paper build..."
 VERSIONS_RESPONSE="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper")"
-PAPER_VERSION="$(echo "$VERSIONS_RESPONSE" | jq -r '.versions | to_entries | map(.value[]) | map(select(test("^[0-9]+(\\.[0-9]+)+$"))) | .[0]')"
 
-if [[ -z "$PAPER_VERSION" || "$PAPER_VERSION" == "null" ]]; then
-  echo "Could not determine the latest Paper version."
-  exit 1
-fi
+PAPER_VERSION=""
+PAPER_BUILD=""
+PAPER_URL=""
 
-echo "Checking stable builds for Paper $PAPER_VERSION..."
-BUILDS_RESPONSE="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper/versions/$PAPER_VERSION/builds")"
+while IFS= read -r CANDIDATE_VERSION; do
+  [[ -z "$CANDIDATE_VERSION" ]] && continue
+  echo "Checking stable builds for Paper $CANDIDATE_VERSION..."
+  BUILDS_RESPONSE="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper/versions/$CANDIDATE_VERSION/builds")" || continue
 
-if echo "$BUILDS_RESPONSE" | jq -e '.ok == false' >/dev/null 2>&1; then
-  echo "Paper API returned an error:"
-  echo "$BUILDS_RESPONSE" | jq -r '.message // "Unknown error"'
-  exit 1
-fi
+  CANDIDATE_BUILD="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .id) // "null"')"
+  CANDIDATE_URL="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads."server:default".url) // "null"')"
 
-PAPER_BUILD="$(echo "$BUILDS_RESPONSE" | jq -r 'map(select(.channel == "STABLE")) | .[0].id // "null"')"
-PAPER_URL="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads."server:default".url) // "null"')"
+  if [[ "$CANDIDATE_BUILD" != "null" && "$CANDIDATE_URL" != "null" ]]; then
+    PAPER_VERSION="$CANDIDATE_VERSION"
+    PAPER_BUILD="$CANDIDATE_BUILD"
+    PAPER_URL="$CANDIDATE_URL"
+    break
+  fi
+done < <(echo "$VERSIONS_RESPONSE" | jq -r '.versions | to_entries[] | .value[] | select(test("^[0-9]+(\\.[0-9]+)+$"))' | awk '!seen[$0]++')
 
-if [[ "$PAPER_BUILD" == "null" || "$PAPER_URL" == "null" ]]; then
-  echo "No stable build was found for $PAPER_VERSION."
+if [[ -z "$PAPER_VERSION" || -z "$PAPER_BUILD" || -z "$PAPER_URL" ]]; then
+  echo "Could not find a stable Paper build."
   exit 1
 fi
 
