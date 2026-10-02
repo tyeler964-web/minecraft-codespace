@@ -29,14 +29,28 @@ mkdir -p plugins logs
 USER_AGENT="minecraft-codespace/1.0 (https://github.com/tyeler964-web/minecraft-codespace)"
 
 echo "Finding the latest stable Paper build..."
-PAPER_VERSION="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper" | jq -r '.versions | to_entries[0] | .value[0]')"
+VERSIONS_RESPONSE="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper")"
+PAPER_VERSION="$(echo "$VERSIONS_RESPONSE" | jq -r '.versions | to_entries | map(.value[]) | map(select(test("^[0-9]+(\\.[0-9]+)+$"))) | .[0]')"
 
+if [[ -z "$PAPER_VERSION" || "$PAPER_VERSION" == "null" ]]; then
+  echo "Could not determine the latest Paper version."
+  exit 1
+fi
+
+echo "Checking stable builds for Paper $PAPER_VERSION..."
 BUILDS_RESPONSE="$(curl -fsSL -H "User-Agent: $USER_AGENT" "https://fill.papermc.io/v3/projects/paper/versions/$PAPER_VERSION/builds")"
-PAPER_BUILD="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .id)')"
-PAPER_URL="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads."server:default".url)')"
 
-if [[ -z "$PAPER_VERSION" || "$PAPER_VERSION" == "null" || -z "$PAPER_BUILD" || "$PAPER_BUILD" == "null" || -z "$PAPER_URL" || "$PAPER_URL" == "null" ]]; then
-  echo "Could not determine a stable Paper build."
+if echo "$BUILDS_RESPONSE" | jq -e '.ok == false' >/dev/null 2>&1; then
+  echo "Paper API returned an error:"
+  echo "$BUILDS_RESPONSE" | jq -r '.message // "Unknown error"'
+  exit 1
+fi
+
+PAPER_BUILD="$(echo "$BUILDS_RESPONSE" | jq -r 'map(select(.channel == "STABLE")) | .[0].id // "null"')"
+PAPER_URL="$(echo "$BUILDS_RESPONSE" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads."server:default".url) // "null"')"
+
+if [[ "$PAPER_BUILD" == "null" || "$PAPER_URL" == "null" ]]; then
+  echo "No stable build was found for $PAPER_VERSION."
   exit 1
 fi
 
