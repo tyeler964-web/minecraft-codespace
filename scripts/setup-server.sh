@@ -18,6 +18,12 @@ if [[ -z "$JAVA_MAJOR" || "$JAVA_MAJOR" -lt 25 ]]; then
   exit 1
 fi
 
+if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+  echo "Installing required download tools..."
+  sudo apt-get update
+  sudo apt-get install -y curl jq
+fi
+
 mkdir -p plugins logs
 
 echo "Finding the latest stable Paper build..."
