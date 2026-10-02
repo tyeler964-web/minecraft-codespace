@@ -1,0 +1,11 @@
+{
+  "name": "Minecraft Paper Server",
+  "image": "mcr.microsoft.com/devcontainers/java:25-bookworm",
+  "features": {"ghcr.io/devcontainers/features/git:1": {}},
+  "customizations": {"vscode": {"extensions": ["redhat.vscode-yaml"]}},
+  "forwardPorts": [25565, 19132],
+  "portsAttributes": {
+    "25565": {"label": "Minecraft Java", "protocol": "tcp"},
+    "19132": {"label": "Minecraft Bedrock", "protocol": "udp"}
+  }
+}
